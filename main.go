@@ -220,7 +220,7 @@ func main() {
 		breakingChangeGroup,
 		footerGroup,
 		ticketGroup,
-	)
+	).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
 
 	if err := form.Run(); err != nil {
 		fmt.Println("Aborted.")
@@ -236,7 +236,7 @@ func main() {
 				}, &subject).
 				Value(&confirmed),
 		),
-	)
+	).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
 
 	if err := confirmForm.Run(); err != nil {
 		fmt.Println("Aborted.")
