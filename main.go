@@ -15,7 +15,7 @@ import (
 var (
 	commitType     string
 	scope          string
-	message        string
+	subject        string
 	desc           string
 	footer         string
 	breakingChange string
@@ -32,6 +32,7 @@ var (
 	types = []string{
 		"feat",
 		"fix",
+		"chore",
 		"docs",
 		"style",
 		"refactor",
@@ -39,6 +40,19 @@ var (
 		"test",
 		"build",
 		"ci",
+	}
+
+	typeDescriptions = map[string]string{
+		"feat":     "A new feature",
+		"fix":      "A bug fix",
+		"chore":    "Build process or auxiliary tool changes",
+		"docs":     "Documentation only changes",
+		"style":    "Markup, white-space, formatting, missing semi-colons...",
+		"refactor": "A code change that neither fixes a bug nor adds a feature",
+		"perf":     "A code change that improves performance",
+		"test":     "Adding missing tests",
+		"build":    "Changes that affect the build system or external dependencies",
+		"ci":       "CI related changes",
 	}
 )
 
@@ -75,7 +89,7 @@ func buildCommitMsg() string {
 	}
 
 	parts := []string{
-		fmt.Sprintf("%s%s%s: %s", commitType, sc, bang, message),
+		fmt.Sprintf("%s%s%s: %s", commitType, sc, bang, subject),
 	}
 
 	if desc != "" {
@@ -113,6 +127,12 @@ func main() {
 	inputGroup := huh.NewGroup(
 		huh.NewInput().
 			Title("Type?").
+			DescriptionFunc(func() string {
+				if typeDesc, ok := typeDescriptions[commitType]; ok {
+					return typeDesc
+				}
+				return "..."
+			}, &commitType).
 			Suggestions(types).
 			Validate(isCommitType).
 			Value(&commitType),
@@ -126,7 +146,7 @@ func main() {
 			Title("Subject?").
 			CharLimit(100).
 			Validate(isSubject).
-			Value(&message),
+			Value(&subject),
 	)
 
 	descGroup := huh.NewGroup(
@@ -189,7 +209,7 @@ func main() {
 				Title("Commit this message?").
 				DescriptionFunc(func() string {
 					return buildCommitMsg()
-				}, &message).
+				}, &subject).
 				Value(&confirmed),
 		),
 	)
