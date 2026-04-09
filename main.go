@@ -147,6 +147,8 @@ func main() {
 		return
 	}
 
+	scopesHistory := scopesFromHistory()
+
 	inputGroup := huh.NewGroup(
 		huh.NewInput().
 			Title("Type?").
@@ -163,7 +165,7 @@ func main() {
 		huh.NewInput().
 			Title("Scope?").
 			Placeholder("optional").
-			Suggestions(scopesFromHistory()).
+			Suggestions(scopesHistory).
 			Value(&scope),
 
 		huh.NewInput().
