@@ -54,6 +54,12 @@ var (
 		"build":    "Changes that affect the build system or external dependencies",
 		"ci":       "CI related changes",
 	}
+
+	ticketDescription = map[string]string{
+		"Closes": "Closes the issue when merged",
+		"Fixes":  "Fixes a bug and closes the issue",
+		"Refs":   "References without closing",
+	}
 )
 
 func isCommitType(input string) error {
@@ -151,7 +157,7 @@ func main() {
 
 	inputGroup := huh.NewGroup(
 		huh.NewInput().
-			Title("Type?").
+			Title("Type").
 			DescriptionFunc(func() string {
 				if typeDesc, ok := typeDescriptions[commitType]; ok {
 					return typeDesc
@@ -163,13 +169,13 @@ func main() {
 			Value(&commitType),
 
 		huh.NewInput().
-			Title("Scope?").
+			Title("Scope").
 			Placeholder("optional").
 			Suggestions(scopesHistory).
 			Value(&scope),
 
 		huh.NewInput().
-			Title("Subject?").
+			Title("Subject").
 			CharLimit(100).
 			Validate(isSubject).
 			Value(&subject),
@@ -177,7 +183,7 @@ func main() {
 
 	descGroup := huh.NewGroup(
 		huh.NewText().
-			Title("Description?").
+			Title("Description").
 			Placeholder("longer explanation (optional)").
 			Value(&desc),
 	).WithHideFunc(func() bool {
@@ -186,7 +192,7 @@ func main() {
 
 	breakingChangeGroup := huh.NewGroup(
 		huh.NewInput().
-			Title("Breaking Change?").
+			Title("Breaking Change").
 			Prompt("BREAKING CHANGE: ").
 			Value(&breakingChange),
 	).WithHideFunc(func() bool {
@@ -195,7 +201,7 @@ func main() {
 
 	footerGroup := huh.NewGroup(
 		huh.NewText().
-			Title("Footer?").
+			Title("Footer").
 			Placeholder("longer footer (optional)").
 			Value(&footer),
 	).WithHideFunc(func() bool {
@@ -204,12 +210,18 @@ func main() {
 
 	ticketGroup := huh.NewGroup(
 		huh.NewInput().
-			Title("Ticket ID?").
+			Title("Ticket ID").
 			Placeholder("e.g. COMP-123, #42").
 			Value(&ticketID),
 
 		huh.NewSelect[string]().
-			Title("Ticket keyword?").
+			Title("Ticket Keyword").
+			DescriptionFunc(func() string {
+				if ticketDesc, ok := ticketDescription[ticketKeyWord]; ok {
+					return ticketDesc
+				}
+				return ""
+			}, &ticketKeyWord).
 			Options(huh.NewOptions(ticketKeyWords...)...).
 			Value(&ticketKeyWord),
 	).WithHideFunc(func() bool {
