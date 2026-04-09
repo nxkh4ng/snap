@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -117,6 +118,30 @@ func buildCommitMsg() string {
 	return strings.Join(parts, "\n\n")
 }
 
+func scopesFromHistory() []string {
+	cmd := exec.Command("git", "log", "--pretty=format:%s", "-50")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	seen := map[string]bool{}
+	var scopes []string
+
+	// parse scope from "type(scope): subject"
+	re := regexp.MustCompile(`\(([^)]+)\)`)
+	for line := range strings.SplitSeq(string(out), "\n") {
+		if m := re.FindStringSubmatch(line); len(m) > 1 {
+			s := m[1]
+			if !seen[s] {
+				seen[s] = true
+				scopes = append(scopes, s)
+			}
+		}
+	}
+	return scopes
+}
+
 func main() {
 	withDesc := flag.Bool("d", false, "add description")
 	withFooter := flag.Bool("f", false, "add footer")
@@ -140,6 +165,7 @@ func main() {
 		huh.NewInput().
 			Title("Scope?").
 			Placeholder("optional").
+			Suggestions(scopesFromHistory()).
 			Value(&scope),
 
 		huh.NewInput().
