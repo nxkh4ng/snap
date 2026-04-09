@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -143,11 +142,10 @@ func scopesFromHistory() []string {
 }
 
 func main() {
-	withDesc := flag.Bool("d", false, "add description")
-	withFooter := flag.Bool("f", false, "add footer")
-	withBreakingChange := flag.Bool("b", false, "add breaking change")
-	withTicket := flag.Bool("t", false, "add ticket")
-	flag.Parse()
+	initFlags()
+	if handleFlags() {
+		return
+	}
 
 	inputGroup := huh.NewGroup(
 		huh.NewInput().
