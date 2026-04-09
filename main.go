@@ -250,8 +250,6 @@ func main() {
 		return
 	}
 
-	fmt.Println(buildCommitMsg())
-
 	cmd := exec.Command("git", "commit", "-m", buildCommitMsg())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
