@@ -5,7 +5,7 @@
 `snap` is a lightweight CLI tool that helps you write clean, consistent Git commits 
 following the **Conventional Commits** standard - without slowing you down.
 
-<!-- ![Demo](./demo/main.gif) -->
+![Demo](./demos/main.gif)
 
 ---
 
@@ -48,7 +48,7 @@ snap
 
 Flow: type → scope (optional) → subject
 
-<!-- ![Basic](./demo/basic.gif) -->
+![Basic](./demos/basic.gif)
 
 ### Flags
 
@@ -62,17 +62,25 @@ Extend your commit with optional parts:
 | `-b`, `--breaking` | add breaking change |
 | `-t`, `--ticket` | add ticket reference |
 
-<!-- #### Ticket
+#### Ticket
 
-![Ticket](./demo/ticket.gif)
+![Ticket](./demos/ticket.gif)
 
-#### Description + Footer
+#### Description
 
-![Description + Footer](./demo/desc-footer.gif)
+![Description](./demos/description.gif)
+
+#### Footer
+
+![Footer](./demos/footer.gif)
 
 #### Breaking Change
 
-![Breaking Change](./demo/breaking-change.gif) -->
+![Breaking Change](./demos/breaking-change.gif)
+
+#### All-in-once
+
+![Breaking Change](./demos/all-in-once.gif)
 
 ---
 
