@@ -2,8 +2,8 @@
 
 > snap your commits into shape.
 
-`snap` is a lightweight CLI tool that helps you write clean, consistent Git commits 
-following the **Conventional Commits** standard - without slowing you down.
+`snap` is a lightweight CLI tool that helps you write clean, consistent Git commits
+following the [**Conventional Commits**](https://www.conventionalcommits.org/en/v1.0.0/) standard - without slowing you down.
 
 ![Demo](./demos/main.gif)
 
@@ -21,20 +21,46 @@ following the **Conventional Commits** standard - without slowing you down.
 
 ## Installation
 
-### Using Go (recommended)
+### Option 1: Using Go (recommended)
+
+Requires **Go 1.20+**. Install Go from [golang.org](https://go.dev/dl/) if you haven't already
 
 ```bash
 go install github.com/nxkh4ng/snap@latest
 ```
 
-> Requires Go 1.20+
+> [!NOTE]
+>
+> - This places the `snap` binary in your Go bin directory.
+> - Make sure `$GOPATH/bin` (or `%USERPROFILE%\go\bin` on Windows) is in your `PATH`.
 
-After installation, make sure your `$GOPATH/bin` (or `$HOME/go/bin`) is in your `PATH`.
+### Option 2: Download binary
 
-### From GitHub Releases
+Download the latest binary from: [Release Page](https://github.com/nxkh4ng/snap/releases)
 
-Download the latest binary from:
-https://github.com/nxkh4ng/snap/releases
+#### MacOS / Linux
+
+```bash
+# Rename and move to PATH
+sudo mv snap_ /usr/local/bin/snap
+
+# Grant execute permission
+chmod +x /usr/local/bin/snap
+```
+
+#### Windows
+
+1. Download `snap_Windows_x86_64.exe` from the Releases page
+2. Rename it to `snap.exe`
+3. Move it to a folder that is in your `PATH`, or add its folder to `PATH` via **System Properties → Environment Variables**
+
+---
+
+**Verify the installation:**
+
+```bash
+snap --version
+```
 
 ---
 
@@ -54,13 +80,13 @@ Flow: type → scope (optional) → subject
 
 Extend your commit with optional parts:
 
-| Flag | Description |
-| --- | --- |
-| `-a`, `--all` | enable all optional fields |
-| `-d`, `--desc` | add description (body) |
-| `-f`, `--footer` | add footer |
-| `-b`, `--breaking` | add breaking change |
-| `-t`, `--ticket` | add ticket reference |
+| Flag               | Description                |
+| ------------------ | -------------------------- |
+| `-a`, `--all`      | enable all optional fields |
+| `-d`, `--desc`     | add description (body)     |
+| `-f`, `--footer`   | add footer                 |
+| `-b`, `--breaking` | add breaking change        |
+| `-t`, `--ticket`   | add ticket reference       |
 
 #### Ticket
 
@@ -80,7 +106,15 @@ Extend your commit with optional parts:
 
 #### All-in-once
 
-![Breaking Change](./demos/all-in-once.gif)
+Flow:
+
+1. type -> scope(optional) -> subject
+2. desc(optional)
+3. breaking change
+4. footer(optional)
+5. ticket
+
+![All-in-once](./demos/all-in-once.gif)
 
 ---
 
@@ -104,9 +138,37 @@ feat(auth): add login with Google
 support OAuth2 flow
 
 BREAKING CHANGE: remove legacy login
-
 Refs: #123
 ```
+
+---
+
+## Uninstall
+
+### Via Go
+
+```bash
+# macOS / Linux
+rm "$(go env GOPATH)/bin/snap"
+
+# Windows (PowerShell)
+Remove-Item "$(go env GOPATH)\bin\snap.exe"
+```
+
+### Via Binary
+
+Remove the binary from wherever you placed it during installation.
+If you're unsure of the location, run the following to find it:
+
+```bash
+# macOS / Linux
+which snap
+
+# Windows (PowerShell)
+where snap
+```
+
+Then delete the file at the path shown
 
 ---
 
