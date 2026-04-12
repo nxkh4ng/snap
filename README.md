@@ -15,7 +15,10 @@ following the [**Conventional Commits**](https://www.conventionalcommits.org/en/
 - Built-in validation for your commit types
 - Enforces Conventional Commits format: `<type>(scope): <subject>`
 - Optional fields via flags (description, footer, breaking change, ticket)
+- Scope suggestions from your git history
 - Zero config (works out of the box)
+- Project-level config via `snap init` — creates `.snap.json` next to `.git`
+- Global config via `snap init --global` — applies across all projects
 
 ---
 
@@ -115,6 +118,106 @@ Flow:
 5. ticket
 
 ![All-in-once](./demos/all-in-once.gif)
+
+---
+
+## Configuration
+
+`snap` works out of the box with no config required. When you need to customize behavior per project or globally, use `snap init`.
+
+### Local config (per project)
+
+```bash
+snap init
+```
+
+Creates `.snap.json` next to your `.git` folder. Committed to the repo so the whole team shares the same config.
+
+### Global config
+
+```bash
+snap init --global
+```
+
+Creates `~/.config/snap/config.json`. Applies to all projects that don't have a local `.snap.json`.
+
+### Config options
+
+| Field              | Type   | Default               | Description                                                   |
+| ------------------ | ------ | --------------------- | ------------------------------------------------------------- |
+| `types`            | array  | 10 built-in types     | commit types available in wizard                              |
+| `scopes`           | array  | `[]`                  | predefined scopes — leave empty for free-text                 |
+| `requireScope`     | bool   | `false`               | make scope mandatory                                          |
+| `subjectCharLimit` | int    | `100`                 | max length of subject line                                    |
+| `ticketKeyWords`   | array  | `Closes, Fixes, Refs` | keywords for ticket reference                                 |
+| `theme`            | string | `base16`              | UI theme (`base`, `base16`, `catppuccin`, `dracula`, `charm`) |
+
+Defaut config:
+
+```json
+{
+  "types": [
+    {
+      "name": "feat",
+      "description": "A new feature"
+    },
+    {
+      "name": "fix",
+      "description": "A bug fix"
+    },
+    {
+      "name": "chore",
+      "description": "Build process or auxiliary tool changes"
+    },
+    {
+      "name": "docs",
+      "description": "Documentation only changes"
+    },
+    {
+      "name": "style",
+      "description": "Markup, white-space, formatting, missing semi-colons..."
+    },
+    {
+      "name": "refactor",
+      "description": "A code change that neither fixes a bug nor adds a feature"
+    },
+    {
+      "name": "perf",
+      "description": "A code change that improves performance"
+    },
+    {
+      "name": "test",
+      "description": "Adding missing tests"
+    },
+    {
+      "name": "build",
+      "description": "Changes that affect the build system or external dependencies"
+    },
+    {
+      "name": "ci",
+      "description": "CI related changes"
+    }
+  ],
+  "scopes": [],
+  "requireScope": false,
+  "subjectCharLimit": 100,
+  "ticketKeyWords": [
+    {
+      "name": "Closes",
+      "description": "Closes the issue when merged"
+    },
+    {
+      "name": "Fixes",
+      "description": "Fixes a bug and closes the issue"
+    },
+    {
+      "name": "Refs",
+      "description": "References without closing"
+    }
+  ],
+  "theme": "base16"
+}
+```
 
 ---
 
