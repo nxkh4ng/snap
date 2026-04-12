@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -54,22 +55,44 @@ func globalConfigPath() string {
 	return filepath.Join(home, ".config", "snap", "config.json")
 }
 
-func loadConfig() Config {
-	data, err := os.ReadFile(globalConfigPath())
+func localConfigPath() (string, error) {
+	dir, err := os.Getwd()
 	if err != nil {
-		return defaultConfig
+		return "", err
 	}
 
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return defaultConfig
+	for {
+		gitDir := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitDir); err == nil {
+			return filepath.Join(dir, ".snap.json"), nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("not a git repository")
+		}
+		dir = parent
 	}
-
-	return cfg
 }
 
-func saveConfig(cfg Config) error {
-	path := globalConfigPath()
+func loadConfig() Config {
+	if localPath, err := localConfigPath(); err == nil {
+		if data, err := os.ReadFile(localPath); err == nil {
+			var cfg Config
+			if err := json.Unmarshal(data, &cfg); err == nil {
+				return cfg
+			}
+		}
+	}
+	if data, err := os.ReadFile(globalConfigPath()); err == nil {
+		var cfg Config
+		if err := json.Unmarshal(data, &cfg); err == nil {
+			return cfg
+		}
+	}
+	return defaultConfig
+}
+
+func saveConfig(cfg Config, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}

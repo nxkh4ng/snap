@@ -95,18 +95,25 @@ func runInitCmd() {
 		}
 	}
 
-	if !isGlobal {
-		fmt.Println("usage: snap init --global")
+	if isGlobal {
+		if err := saveConfig(defaultConfig, globalConfigPath()); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to write config: %s\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("config saved to %s\n", globalConfigPath())
 		return
 	}
 
-	path := globalConfigPath()
-
-	if err := saveConfig(defaultConfig); err != nil {
+	localPath, err := localConfigPath()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+	if err := saveConfig(defaultConfig, localPath); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write config: %s\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("config saved to %s\n", path)
+	fmt.Printf("config saved to %s\n", localPath)
 }
 
 func getTheme(name string) huh.ThemeFunc {
