@@ -5,9 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"slices"
 	"strings"
-	"unicode"
 
 	"charm.land/huh/v2"
 )
@@ -22,66 +20,7 @@ var (
 	ticketID       string
 	ticketKeyWord  string
 	confirmed      bool
-
-	ticketKeyWords = []string{
-		"Closes",
-		"Fixes",
-		"Refs",
-	}
-
-	types = []string{
-		"feat",
-		"fix",
-		"chore",
-		"docs",
-		"style",
-		"refactor",
-		"perf",
-		"test",
-		"build",
-		"ci",
-	}
-
-	typeDescriptions = map[string]string{
-		"feat":     "A new feature",
-		"fix":      "A bug fix",
-		"chore":    "Build process or auxiliary tool changes",
-		"docs":     "Documentation only changes",
-		"style":    "Markup, white-space, formatting, missing semi-colons...",
-		"refactor": "A code change that neither fixes a bug nor adds a feature",
-		"perf":     "A code change that improves performance",
-		"test":     "Adding missing tests",
-		"build":    "Changes that affect the build system or external dependencies",
-		"ci":       "CI related changes",
-	}
-
-	ticketDescription = map[string]string{
-		"Closes": "Closes the issue when merged",
-		"Fixes":  "Fixes a bug and closes the issue",
-		"Refs":   "References without closing",
-	}
 )
-
-func isCommitType(input string) error {
-	input = strings.ToLower(strings.TrimSpace(input))
-	if slices.Contains(types, input) {
-		return nil
-	}
-	return fmt.Errorf("invalid commit type: %s\n(allowed: %s)", input, strings.Join(types, ", "))
-}
-
-func isSubject(input string) error {
-	if len(input) == 0 {
-		return fmt.Errorf("subject is required")
-	}
-	if unicode.IsUpper(rune(input[0])) {
-		return fmt.Errorf("subject must not start with uppercase")
-	}
-	if strings.HasSuffix(input, ".") {
-		return fmt.Errorf("subject must not end with a period")
-	}
-	return nil
-}
 
 func buildCommitMsg() string {
 	sc := scope
@@ -147,11 +86,70 @@ func scopesFromHistory() []string {
 	return scopes
 }
 
+func runInitCmd() {
+	isGlobal := false
+	for _, arg := range os.Args[2:] {
+		if arg == "--global" || arg == "-g" {
+			isGlobal = true
+			break
+		}
+	}
+
+	if !isGlobal {
+		fmt.Println("usage: snap init --global")
+		return
+	}
+
+	path := globalConfigPath()
+
+	if err := saveConfig(defaultConfig); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write config: %s\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("config saved to %s\n", path)
+}
+
+func getTheme(name string) huh.ThemeFunc {
+	themes := map[string]huh.ThemeFunc{
+		"base":       huh.ThemeBase,
+		"base16":     huh.ThemeBase16,
+		"catppuccin": huh.ThemeCatppuccin,
+		"dracula":    huh.ThemeDracula,
+		"charm":      huh.ThemeCharm,
+	}
+
+	if theme, ok := themes[strings.ToLower(name)]; ok {
+		return theme
+	}
+
+	return huh.ThemeBase16
+}
+
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "init":
+			runInitCmd()
+			return
+		}
+	}
 	initFlags()
 	if handleFlags() {
 		return
 	}
+
+	cfg := loadConfig()
+	typeNames := make([]string, len(cfg.Types))
+	typeDescs := make(map[string]string)
+	for i, t := range cfg.Types {
+		typeNames[i] = t.Name
+		typeDescs[t.Name] = t.Description
+	}
+	ticketDescs := make(map[string]string)
+	for _, kw := range cfg.TicketKeyWords {
+		ticketDescs[kw.Name] = kw.Description
+	}
+	theme := getTheme(cfg.Theme)
 
 	scopesHistory := scopesFromHistory()
 
@@ -159,25 +157,25 @@ func main() {
 		huh.NewInput().
 			Title("Type").
 			DescriptionFunc(func() string {
-				if typeDesc, ok := typeDescriptions[commitType]; ok {
+				if typeDesc, ok := typeDescs[commitType]; ok {
 					return typeDesc
 				}
 				return "..."
 			}, &commitType).
-			Suggestions(types).
-			Validate(isCommitType).
+			Suggestions(typeNames).
+			Validate(canType(typeNames)).
 			Value(&commitType),
 
 		huh.NewInput().
 			Title("Scope").
-			Placeholder("optional").
+			Validate(canScope(cfg.Scopes, cfg.RequireScope)).
 			Suggestions(scopesHistory).
 			Value(&scope),
 
 		huh.NewInput().
 			Title("Subject").
-			CharLimit(100).
-			Validate(isSubject).
+			CharLimit(cfg.SubjectCharLimit).
+			Validate(canSubject).
 			Value(&subject),
 	)
 
@@ -214,14 +212,20 @@ func main() {
 			Value(&ticketID),
 
 		huh.NewSelect[string]().
-			Title("Ticket Keyword").
+			Title("Ticket keyword?").
 			DescriptionFunc(func() string {
-				if ticketDesc, ok := ticketDescription[ticketKeyWord]; ok {
-					return ticketDesc
+				if desc, ok := ticketDescs[ticketKeyWord]; ok {
+					return desc
 				}
-				return ""
+				return "..."
 			}, &ticketKeyWord).
-			Options(huh.NewOptions(ticketKeyWords...)...).
+			Options(func() []huh.Option[string] {
+				opts := make([]huh.Option[string], len(cfg.TicketKeyWords))
+				for i, kw := range cfg.TicketKeyWords {
+					opts[i] = huh.NewOption(kw.Name, kw.Name)
+				}
+				return opts
+			}()...).
 			Value(&ticketKeyWord),
 	).WithHideFunc(func() bool {
 		return !*withTicket
@@ -233,7 +237,7 @@ func main() {
 		breakingChangeGroup,
 		footerGroup,
 		ticketGroup,
-	).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
+	).WithTheme(theme)
 
 	if err := form.Run(); err != nil {
 		fmt.Println("Aborted.")
@@ -249,7 +253,7 @@ func main() {
 				}, &subject).
 				Value(&confirmed),
 		),
-	).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
+	).WithTheme(theme)
 
 	if err := confirmForm.Run(); err != nil {
 		fmt.Println("Aborted.")
