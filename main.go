@@ -192,8 +192,7 @@ func main() {
 
 	breakingChangeGroup := huh.NewGroup(
 		huh.NewInput().
-			Title("Breaking Change").
-			Prompt("BREAKING CHANGE: ").
+			Title("BREAKING CHANGE").
 			Value(&breakingChange),
 	).WithHideFunc(func() bool {
 		return !*withBreakingChange
@@ -211,7 +210,7 @@ func main() {
 	ticketGroup := huh.NewGroup(
 		huh.NewInput().
 			Title("Ticket ID").
-			Placeholder("e.g. COMP-123, #42").
+			Placeholder("COMP-123, #42").
 			Value(&ticketID),
 
 		huh.NewSelect[string]().
