@@ -24,7 +24,10 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"slices"
+	"strings"
 
 	"charm.land/huh/v2"
 	"github.com/spf13/cobra"
@@ -51,29 +54,73 @@ var rootCmd = &cobra.Command{
 
 		f := huh.NewForm(
 			huh.NewGroup(
-				huh.NewInput().Title("Type").Value(&commit).Placeholder("feat").Suggestions(types),
-				huh.NewInput().Title("Scope").Value(&scope).Placeholder("optional"),
+				huh.NewInput().Title("Type*").Value(&commit).
+					Placeholder("feat, fix").Suggestions(types).
+					Validate(func(t string) error {
+						t = strings.TrimSpace(t)
+						if err := huh.ValidateMinLength(1)(t); err != nil {
+							return fmt.Errorf("type cannot be empty")
+						}
+						if !slices.Contains(types, t) {
+							return fmt.Errorf("only allow: %v", strings.Join(types, ", "))
+						}
+						return nil
+					}),
+				huh.NewInput().Title("Scope").Value(&scope).
+					Placeholder("api, auth").CharLimit(30),
+				huh.NewInput().Title("Summary*").Value(&summary).
+					Placeholder("Summary of changes").CharLimit(60).
+					Validate(func(input string) error {
+						if err := huh.ValidateMinLength(1)(input); err != nil {
+							return fmt.Errorf("summary cannot be empty")
+						}
+						return nil
+					}),
 			),
 			huh.NewGroup(
-				huh.NewInput().Title("Summary").Value(&summary).Placeholder("Summary of changes"),
 				huh.NewText().Title("Description").Value(&description).Placeholder("Detailed description of changes"),
-			),
+			).WithHeight(9),
+		)
+		if err := f.Run(); err != nil {
+			log.Fatal(err)
+		}
+
+		cf := huh.NewForm(
 			huh.NewGroup(
-				huh.NewConfirm().Title("Commit changes?").Value(&confirm).
-				DescriptionFunc(func() string {
-					return fmt.Sprintf("%s(%s): %s \n\n%s", commit, scope, summary, description)
-				}, confirm),
+				huh.NewConfirm().Title("Commit this changes?").Value(&confirm).
+					DescriptionFunc(func() string {
+						return formatCommitMsg(commit, scope, summary, description)
+					}, confirm),
 			),
 		)
-
-		if err := f.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
+		if err := cf.Run(); err != nil {
+			log.Fatal(err)
 		}
+
 		if confirm {
-			fmt.Printf("%s(%s): %s \n\n%s\n", commit, scope, summary, description)
+			msg := formatCommitMsg(commit, scope, summary, description)
+			fmt.Println(msg)
 		}
 	},
+}
+
+func formatCommitMsg(commit, scope, summary, description string) string {
+	// cleanup values
+	commit = strings.TrimSpace(commit)
+	scope = strings.ToLower(strings.TrimSpace(scope))
+	summary = strings.TrimSpace(summary)
+	description = strings.TrimSpace(description)
+
+	if scope != "" {
+		scope = "(" + scope + ")"
+	}
+	title := commit + scope + ": " + summary
+	var body string
+	if description != "" {
+		body = "\n\n" + description
+	}
+	message := title + body
+	return message
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
