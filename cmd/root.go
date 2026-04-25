@@ -39,7 +39,19 @@ var (
 	longDesc = `snap is a lightweight CLI tool that helps you make consistent Git Commits without slowing you down.
 Following this conventional commits standard - https://www.conventionalcommits.org/en/v1.0.0/`
 
-	types = []string{"feat", "fix", "docs", "chore", "refactor", "test", "revert"}
+	typeMap = map[string]string{
+		"feat":  "A new feature",
+		"fix":   "A bug fix",
+		"docs":  "Documentation only changes",
+		"style": "Formatting, white-space, missing semi-colons,...",
+		"refactor": "Code changes that neither fix bugs nor add features",
+		"pref": "Code changes that improves performance",
+		"test": "Adding missing tests or correcting existing tests",
+		"build": "Changes that affect the build system or external dependencies",
+		"ci": "Changes to our CI configuration files and scripts",
+		"chore": "Other changes that don't modify src or test files",
+		"revert": "Reverts a previous commit",
+	}
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -52,22 +64,49 @@ var rootCmd = &cobra.Command{
 		var summary, description string
 		var confirm bool
 
+		typeKey := make([]string, 0, len(typeMap))
+		for key := range typeMap {
+			typeKey = append(typeKey, key)
+		}
+		slices.Sort(typeKey)
+
 		f := huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().Title("Type*").Value(&commit).
-					Placeholder("feat, fix").Suggestions(types).
+					Placeholder("feat, fix").Suggestions(typeKey).
+					DescriptionFunc(func() string {
+						commit = strings.TrimSpace(commit)
+						if commit != "" {
+							var matchCount int
+							var matchedKey string
+							for key := range typeMap {
+								if strings.HasPrefix(key, commit) {
+									matchCount++
+									matchedKey = key
+									if matchCount > 1 {
+										return "Select a commit type"
+									}
+								}
+							}
+							if matchCount == 1 {
+								return typeMap[matchedKey]
+							}
+						}
+						return "Select a commit type"
+					}, &commit).
 					Validate(func(t string) error {
-						t = strings.TrimSpace(t)
 						if err := huh.ValidateMinLength(1)(t); err != nil {
 							return fmt.Errorf("type cannot be empty")
 						}
-						if !slices.Contains(types, t) {
-							return fmt.Errorf("only allow: %v", strings.Join(types, ", "))
+						if _, ok := typeMap[t]; !ok {
+							return fmt.Errorf("only allow: %v", strings.Join(typeKey, ", "))
 						}
 						return nil
 					}),
+
 				huh.NewInput().Title("Scope").Value(&scope).
 					Placeholder("api, auth").CharLimit(30),
+
 				huh.NewInput().Title("Summary*").Value(&summary).
 					Placeholder("Summary of changes").CharLimit(60).
 					Validate(func(input string) error {
@@ -77,9 +116,12 @@ var rootCmd = &cobra.Command{
 						return nil
 					}),
 			),
+
 			huh.NewGroup(
-				huh.NewText().Title("Description").Value(&description).Placeholder("Detailed description of changes"),
-			).WithHeight(9),
+				huh.NewText().Title("Description").Value(&description).
+					Placeholder("Detailed description of changes").
+					WithHeight(10),
+			),
 		)
 		if err := f.Run(); err != nil {
 			log.Fatal(err)
@@ -90,7 +132,7 @@ var rootCmd = &cobra.Command{
 				huh.NewConfirm().Title("Commit this changes?").Value(&confirm).
 					DescriptionFunc(func() string {
 						return formatCommitMsg(commit, scope, summary, description)
-					}, confirm),
+					}, &confirm),
 			),
 		)
 		if err := cf.Run(); err != nil {
