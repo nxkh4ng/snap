@@ -40,17 +40,17 @@ var (
 Following this conventional commits standard - https://www.conventionalcommits.org/en/v1.0.0/`
 
 	typeMap = map[string]string{
-		"feat":  "A new feature",
-		"fix":   "A bug fix",
-		"docs":  "Documentation only changes",
-		"style": "Formatting, white-space, missing semi-colons,...",
+		"feat":     "A new feature",
+		"fix":      "A bug fix",
+		"docs":     "Documentation only changes",
+		"style":    "Formatting, white-space, missing semi-colons,...",
 		"refactor": "Code changes that neither fix bugs nor add features",
-		"pref": "Code changes that improves performance",
-		"test": "Adding missing tests or correcting existing tests",
-		"build": "Changes that affect the build system or external dependencies",
-		"ci": "Changes to our CI configuration files and scripts",
-		"chore": "Other changes that don't modify src or test files",
-		"revert": "Reverts a previous commit",
+		"pref":     "Code changes that improves performance",
+		"test":     "Adding missing tests or correcting existing tests",
+		"build":    "Changes that affect the build system or external dependencies",
+		"ci":       "Changes to our CI configuration files and scripts",
+		"chore":    "Other changes that don't modify src or test files",
+		"revert":   "Reverts a previous commit",
 	}
 )
 
@@ -62,6 +62,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		var commit, scope string
 		var summary, description string
+		var breakingChange string
 		var confirm bool
 
 		typeKey := make([]string, 0, len(typeMap))
@@ -75,7 +76,7 @@ var rootCmd = &cobra.Command{
 				huh.NewInput().Title("Type*").Value(&commit).
 					Placeholder("feat, fix").Suggestions(typeKey).
 					DescriptionFunc(func() string {
-						commit = strings.TrimSpace(commit)
+						commit = strings.TrimSuffix(strings.TrimSpace(commit), "!")
 						if commit != "" {
 							var matchCount int
 							var matchedKey string
@@ -98,6 +99,7 @@ var rootCmd = &cobra.Command{
 						if err := huh.ValidateMinLength(1)(t); err != nil {
 							return fmt.Errorf("type cannot be empty")
 						}
+						t = strings.TrimSuffix(t, "!")
 						if _, ok := typeMap[t]; !ok {
 							return fmt.Errorf("only allow: %v", strings.Join(typeKey, ", "))
 						}
@@ -122,6 +124,13 @@ var rootCmd = &cobra.Command{
 					Placeholder("Detailed description of changes").
 					WithHeight(10),
 			),
+
+			huh.NewGroup(
+				huh.NewText().Title("BREAKING CHANGE*").Value(&breakingChange).
+					WithHeight(10),
+			).WithHideFunc(func() bool {
+				return !strings.Contains(commit, "!")
+			}),
 		)
 		if err := f.Run(); err != nil {
 			log.Fatal(err)
@@ -131,7 +140,7 @@ var rootCmd = &cobra.Command{
 			huh.NewGroup(
 				huh.NewConfirm().Title("Commit this changes?").Value(&confirm).
 					DescriptionFunc(func() string {
-						return formatCommitMsg(commit, scope, summary, description)
+						return formatCommitMsg(commit, scope, summary, description, breakingChange)
 					}, &confirm),
 			),
 		)
@@ -140,28 +149,38 @@ var rootCmd = &cobra.Command{
 		}
 
 		if confirm {
-			msg := formatCommitMsg(commit, scope, summary, description)
+			msg := formatCommitMsg(commit, scope, summary, description, breakingChange)
 			fmt.Println(msg)
 		}
 	},
 }
 
-func formatCommitMsg(commit, scope, summary, description string) string {
+func formatCommitMsg(commit, scope, summary, description, breakingChange string) string {
 	// cleanup values
 	commit = strings.TrimSpace(commit)
 	scope = strings.ToLower(strings.TrimSpace(scope))
 	summary = strings.TrimSpace(summary)
 	description = strings.TrimSpace(description)
+	breakingChange = strings.TrimSpace(breakingChange)
 
 	if scope != "" {
 		scope = "(" + scope + ")"
+		if strings.Contains(commit, "!") {
+			scope = scope + "!"
+			commit = strings.TrimSuffix(commit, "!")
+		}
 	}
 	title := commit + scope + ": " + summary
-	var body string
+
+	var body, footer string
 	if description != "" {
 		body = "\n\n" + description
 	}
-	message := title + body
+	if breakingChange != "" {
+		footer = "\n\n" + "BREAKING CHANGE: " + breakingChange
+	}
+
+	message := title + body + footer
 	return message
 }
 
