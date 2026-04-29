@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"slices"
 	"strings"
 
@@ -60,6 +61,26 @@ var rootCmd = &cobra.Command{
 	Short: "snap your commits into shape",
 	Long:  longDesc,
 	Run: func(cmd *cobra.Command, args []string) {
+		repoCmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
+		if err := repoCmd.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "not a git repository, use `git init` to initialize")
+			os.Exit(1)
+		}
+
+		autoStage, _ := cmd.Flags().GetBool("all")
+		if autoStage {
+			addCmd := exec.Command("git", "add", "-u")
+			if err := addCmd.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to stage files: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			if err := checkGitCommitReady(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+		}
+		var msg string
 		var commit, scope string
 		var summary, description string
 		var breakingChange string
@@ -126,7 +147,7 @@ var rootCmd = &cobra.Command{
 			),
 
 			huh.NewGroup(
-				huh.NewText().Title("BREAKING CHANGE*").Value(&breakingChange).
+				huh.NewText().Title("BREAKING CHANGE").Value(&breakingChange).
 					WithHeight(10),
 			).WithHideFunc(func() bool {
 				return !strings.Contains(commit, "!")
@@ -135,12 +156,13 @@ var rootCmd = &cobra.Command{
 		if err := f.Run(); err != nil {
 			log.Fatal(err)
 		}
+		msg = formatCommitMsg(commit, scope, summary, description, breakingChange)
 
 		cf := huh.NewForm(
 			huh.NewGroup(
 				huh.NewConfirm().Title("Commit this changes?").Value(&confirm).
 					DescriptionFunc(func() string {
-						return formatCommitMsg(commit, scope, summary, description, breakingChange)
+						return msg
 					}, &confirm),
 			),
 		)
@@ -149,8 +171,12 @@ var rootCmd = &cobra.Command{
 		}
 
 		if confirm {
-			msg := formatCommitMsg(commit, scope, summary, description, breakingChange)
-			fmt.Println(msg)
+			commitCmd := exec.Command("git", "commit", "-m", msg)
+			output, err := commitCmd.Output()
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(string(output))
 		}
 	},
 }
@@ -162,26 +188,53 @@ func formatCommitMsg(commit, scope, summary, description, breakingChange string)
 	summary = strings.TrimSpace(summary)
 	description = strings.TrimSpace(description)
 	breakingChange = strings.TrimSpace(breakingChange)
+	var b strings.Builder
 
+	hasBreakingChange := strings.Contains(commit, "!")
+	if hasBreakingChange {
+		commit = strings.TrimSuffix(commit, "!")
+	}
+
+	// Title = <type>(scope)!: summary
+	// or <type>!: summary
+	b.WriteString(commit)
 	if scope != "" {
-		scope = "(" + scope + ")"
-		if strings.Contains(commit, "!") {
-			scope = scope + "!"
-			commit = strings.TrimSuffix(commit, "!")
+		b.WriteString("(")
+		b.WriteString(scope)
+		b.WriteString(")")
+	}
+	if hasBreakingChange {
+		b.WriteString("!")
+	}
+	b.WriteString(": ")
+	b.WriteString(summary)
+
+	// Description
+	if description != "" {
+		b.WriteString("\n\n")
+		b.WriteString(description)
+	}
+
+	// BREAKING CHANGES
+	if breakingChange != "" {
+		b.WriteString("\n\nBREAKING CHANGE: ")
+		b.WriteString(breakingChange)
+	}
+
+	return b.String()
+}
+
+func checkGitCommitReady() error {
+	stagedCmd := exec.Command("git", "diff", "--cached", "--quiet")
+	err := stagedCmd.Run()
+	if err == nil {
+		return fmt.Errorf("no staged changes to commit, use `git add <file>` to stage your changes")
+	} else {
+		if err.Error() != "exit status 1" {
+			return fmt.Errorf("failed to check staged changes: %v", err)
 		}
 	}
-	title := commit + scope + ": " + summary
-
-	var body, footer string
-	if description != "" {
-		body = "\n\n" + description
-	}
-	if breakingChange != "" {
-		footer = "\n\n" + "BREAKING CHANGE: " + breakingChange
-	}
-
-	message := title + body + footer
-	return message
+	return nil
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -204,7 +257,7 @@ func init() {
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.Flags().BoolP("all", "a", false, "stage all tracked files before committing")
 }
 
 // initConfig reads in config file and ENV variables if set.
