@@ -53,6 +53,8 @@ Following this conventional commits standard - https://www.conventionalcommits.o
 		"chore":    "Other changes that don't modify src or test files",
 		"revert":   "Reverts a previous commit",
 	}
+
+	typeKeys []string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -86,23 +88,19 @@ var rootCmd = &cobra.Command{
 		var breakingChange string
 		var confirm bool
 
-		typeKey := make([]string, 0, len(typeMap))
-		for key := range typeMap {
-			typeKey = append(typeKey, key)
-		}
-		slices.Sort(typeKey)
-
 		f := huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().Title("Type*").Value(&commit).
-					Placeholder("feat, fix").Suggestions(typeKey).
+					Placeholder("feat, fix").Suggestions(typeKeys).
 					DescriptionFunc(func() string {
-						commit = strings.TrimSuffix(strings.TrimSpace(commit), "!")
-						if commit != "" {
+						temp := strings.TrimSuffix(strings.TrimSpace(commit), "!")
+						if temp == "" {
+							return "Select a commit type"
+						} else {
 							var matchCount int
 							var matchedKey string
-							for key := range typeMap {
-								if strings.HasPrefix(key, commit) {
+							for _, key := range typeKeys {
+								if strings.HasPrefix(key, temp) {
 									matchCount++
 									matchedKey = key
 									if matchCount > 1 {
@@ -122,7 +120,7 @@ var rootCmd = &cobra.Command{
 						}
 						t = strings.TrimSuffix(t, "!")
 						if _, ok := typeMap[t]; !ok {
-							return fmt.Errorf("only allow: %v", strings.Join(typeKey, ", "))
+							return fmt.Errorf("only allow: %v", strings.Join(typeKeys, ", "))
 						}
 						return nil
 					}),
@@ -247,6 +245,12 @@ func Execute() {
 }
 
 func init() {
+	typeKeys = make([]string, 0, len(typeMap))
+	for key := range typeMap {
+		typeKeys = append(typeKeys, key)
+	}
+	slices.Sort(typeKeys)
+
 	cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
