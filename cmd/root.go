@@ -69,24 +69,36 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		autoStage, _ := cmd.Flags().GetBool("all")
-		if autoStage {
-			addCmd := exec.Command("git", "add", "-u")
-			if err := addCmd.Run(); err != nil {
-				fmt.Fprintf(os.Stderr, "failed to stage files: %v\n", err)
-				os.Exit(1)
-			}
-		} else {
-			if err := checkGitCommitReady(); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
-			}
-		}
 		var msg string
 		var commit, scope string
 		var summary, description string
 		var breakingChange string
 		var confirm bool
+
+		amend, _ := cmd.Flags().GetBool("amend")
+		if amend {
+			logCmd := exec.Command("git", "log", "-1", "--format=%B")
+			out, err := logCmd.Output()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to log latest commit: %v\n", err)
+				os.Exit(1)
+			}
+			commit, scope, summary, description, breakingChange, _ = parseCommitMsg(string(out))
+		} else {
+			autoStage, _ := cmd.Flags().GetBool("all")
+			if autoStage {
+				addCmd := exec.Command("git", "add", "-u")
+				if err := addCmd.Run(); err != nil {
+					fmt.Fprintf(os.Stderr, "failed to stage files: %v\n", err)
+					os.Exit(1)
+				}
+			} else {
+				if err := checkGitCommitReady(); err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					os.Exit(1)
+				}
+			}
+		}
 
 		f := huh.NewForm(
 			huh.NewGroup(
@@ -148,9 +160,13 @@ var rootCmd = &cobra.Command{
 				huh.NewText().Title("BREAKING CHANGE").Value(&breakingChange).
 					WithHeight(10),
 			).WithHideFunc(func() bool {
-				return !strings.Contains(commit, "!")
+				if !strings.Contains(commit, "!") {
+					breakingChange = ""
+					return true
+				}
+				return false
 			}),
-		)
+		).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
 		if err := f.Run(); err != nil {
 			log.Fatal(err)
 		}
@@ -158,18 +174,29 @@ var rootCmd = &cobra.Command{
 
 		cf := huh.NewForm(
 			huh.NewGroup(
-				huh.NewConfirm().Title("Commit this changes?").Value(&confirm).
+				huh.NewConfirm().Value(&confirm).
+					TitleFunc(func() string {
+						if amend {
+							return "Amend this commit?"
+						}
+						return "Commit this changes?"
+					}, &confirm).
 					DescriptionFunc(func() string {
 						return msg
-					}, &confirm),
+					}, &msg),
 			),
-		)
+		).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
 		if err := cf.Run(); err != nil {
 			log.Fatal(err)
 		}
 
 		if confirm {
-			commitCmd := exec.Command("git", "commit", "-m", msg)
+			var commitCmd *exec.Cmd
+			if amend {
+				commitCmd = exec.Command("git", "commit", "--amend", "-m", msg)
+			} else {
+				commitCmd = exec.Command("git", "commit", "-m", msg)
+			}
 			output, err := commitCmd.Output()
 			if err != nil {
 				log.Fatal(err)
@@ -177,6 +204,44 @@ var rootCmd = &cobra.Command{
 			fmt.Println(string(output))
 		}
 	},
+}
+
+func parseCommitMsg(msg string) (commit, scope, summary, description, breakingChange string, hasBreaking bool) {
+	parts := strings.SplitN(msg, "\n\n", 2)
+	header := strings.TrimSpace(parts[0])
+	body := ""
+	if len(parts) > 1 {
+		body = strings.TrimSpace(parts[1])
+	}
+
+	headerParts := strings.SplitN(header, ": ", 2)
+	if len(headerParts) == 2 {
+		typeScope := headerParts[0]
+		summary = headerParts[1]
+
+		hasBreaking = strings.Contains(typeScope, "!")
+		typeScope = strings.TrimSuffix(typeScope, "!")
+
+		if before, after, ok := strings.Cut(typeScope, "("); ok {
+			commit = before
+			scope = strings.TrimSuffix(after, ")")
+		} else {
+			commit = typeScope
+		}
+
+		if hasBreaking {
+			commit = commit + "!"
+		}
+	}
+
+	if before, after, ok := strings.Cut(body, "BREAKING CHANGE:"); ok {
+		description = strings.TrimSpace(before)
+		breakingChange = strings.TrimSpace(after)
+	} else {
+		description = body
+	}
+
+	return commit, scope, summary, description, breakingChange, hasBreaking
 }
 
 func formatCommitMsg(commit, scope, summary, description, breakingChange string) string {
@@ -262,6 +327,7 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("all", "a", false, "stage all tracked files before committing")
+	rootCmd.Flags().Bool("amend", false, "amend the latest commit")
 }
 
 // initConfig reads in config file and ENV variables if set.
