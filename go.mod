@@ -2,7 +2,11 @@ module github.com/nxkh4ng/snap
 
 go 1.26.1
 
-require charm.land/huh/v2 v2.0.3
+require (
+	charm.land/huh/v2 v2.0.3
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/viper v1.21.0
+)
 
 require (
 	charm.land/bubbles/v2 v2.0.0 // indirect
@@ -34,9 +38,7 @@ require (
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/spf13/viper v1.21.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
