@@ -37,6 +37,7 @@ import (
 )
 
 var (
+	version = "0.3.0"	
 	cfgFile  string
 	longDesc = `snap is a lightweight CLI tool that helps you make consistent Git Commits without slowing you down.
 Following this conventional commits standard - https://www.conventionalcommits.org/en/v1.0.0/`
@@ -231,15 +232,9 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.Version = version
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.snap.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
 	rootCmd.Flags().BoolP("all", "a", false, "stage all tracked files before committing")
 	rootCmd.Flags().Bool("amend", false, "amend the latest commit")
 }
