@@ -26,12 +26,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"charm.land/huh/v2"
+	"github.com/nxkh4ng/snap/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -42,9 +42,10 @@ var (
 Following this conventional commits standard - https://www.conventionalcommits.org/en/v1.0.0/`
 
 	typeMap map[string]string
+	validations internal.ValidationConfig
 	typeKeys []string
-	summaryLen, scopeLen int
-	requireScope, requireDescription bool
+	summaryMaxLen, scopeMaxLen int
+	scopeRequired, descriptionRequired bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -53,9 +54,8 @@ var rootCmd = &cobra.Command{
 	Short: "snap your commits into shape",
 	Long:  longDesc,
 	Run: func(cmd *cobra.Command, args []string) {
-		repoCmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
-		if err := repoCmd.Run(); err != nil {
-			fmt.Fprintln(os.Stderr, "not a git repository, use `git init` to initialize")
+		if err := internal.CheckGitRepo(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 
@@ -65,25 +65,23 @@ var rootCmd = &cobra.Command{
 		var breakingChange string
 		var confirm bool
 
-		amend, _ := cmd.Flags().GetBool("amend")
-		if amend {
-			logCmd := exec.Command("git", "log", "-1", "--format=%B")
-			out, err := logCmd.Output()
+		amendFlag, _ := cmd.Flags().GetBool("amend")
+		if amendFlag {
+			latestMsg, err := internal.GetTheLatestCommitMsg()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "failed to log latest commit: %v\n", err)
+				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
-			commit, scope, summary, description, breakingChange, _ = parseCommitMsg(string(out))
+			commit, scope, summary, description, breakingChange, _ = internal.ParseCommitMsg(latestMsg)
 		} else {
-			autoStage, _ := cmd.Flags().GetBool("all")
-			if autoStage {
-				addCmd := exec.Command("git", "add", "-u")
-				if err := addCmd.Run(); err != nil {
-					fmt.Fprintf(os.Stderr, "failed to stage files: %v\n", err)
+			autoStageFlag, _ := cmd.Flags().GetBool("all")
+			if autoStageFlag {
+				if err := internal.StageAll(); err != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", err)
 					os.Exit(1)
 				}
 			} else {
-				if err := checkGitCommitReady(); err != nil {
+				if err := internal.CheckGitCommitReady(); err != nil {
 					fmt.Fprintln(os.Stderr, err)
 					os.Exit(1)
 				}
@@ -130,18 +128,18 @@ var rootCmd = &cobra.Command{
 				huh.NewInput().Value(&scope).
 					Placeholder("api, auth").
 					TitleFunc(func() string {
-						if requireScope {
+						if scopeRequired {
 							return "Scope*"
 						}
 						return "Scope"
 					}, &scope).
 					Validate(func(input string) error {
-						if err := huh.ValidateMinLength(1)(input); err != nil && requireScope {
+						if err := huh.ValidateMinLength(1)(input); err != nil && scopeRequired {
 							return fmt.Errorf("scope is required")
 						}
-						if utf8.RuneCountInString(input) > scopeLen {
+						if utf8.RuneCountInString(input) > scopeMaxLen {
 							current := utf8.RuneCountInString(scope)
-							return fmt.Errorf("scope must be at most %d characters long - current: %d", scopeLen, current)
+							return fmt.Errorf("scope must be at most %d characters long - current: %d", scopeMaxLen, current)
 						}
 						return nil
 					}),
@@ -152,9 +150,9 @@ var rootCmd = &cobra.Command{
 						if err := huh.ValidateMinLength(1)(input); err != nil {
 							return fmt.Errorf("summary cannot be empty")
 						}
-						if utf8.RuneCountInString(input) > summaryLen {
+						if utf8.RuneCountInString(input) > summaryMaxLen {
 							current := utf8.RuneCountInString(summary)
-							return fmt.Errorf("summary must be at most %d characters long - current: %d", summaryLen, current)
+							return fmt.Errorf("summary must be at most %d characters long - current: %d", summaryMaxLen, current)
 						}
 						return nil
 					}),
@@ -163,14 +161,14 @@ var rootCmd = &cobra.Command{
 			huh.NewGroup(
 				huh.NewText().Value(&description).
 					TitleFunc(func() string {
-						if requireDescription {
+						if descriptionRequired {
 							return "Description*"
 						}
 						return "Description"
 					}, &description).
 					Placeholder("Detailed description of changes").
 					Validate(func(input string) error {
-						if err := huh.ValidateMinLength(1)(input); err != nil && requireDescription {
+						if err := huh.ValidateMinLength(1)(input); err != nil && descriptionRequired {
 							return fmt.Errorf("description is required")
 						}
 						return nil
@@ -192,13 +190,13 @@ var rootCmd = &cobra.Command{
 		if err := f.Run(); err != nil {
 			log.Fatal(err)
 		}
-		msg = formatCommitMsg(commit, scope, summary, description, breakingChange)
+		msg = internal.FormatCommitMsg(commit, scope, summary, description, breakingChange)
 
 		cf := huh.NewForm(
 			huh.NewGroup(
 				huh.NewConfirm().Value(&confirm).
 					TitleFunc(func() string {
-						if amend {
+						if amendFlag {
 							return "Amend this commit?"
 						}
 						return "Commit this changes?"
@@ -213,160 +211,13 @@ var rootCmd = &cobra.Command{
 		}
 
 		if confirm {
-			var commitCmd *exec.Cmd
-			if amend {
-				commitCmd = exec.Command("git", "commit", "--amend", "-m", msg)
-			} else {
-				commitCmd = exec.Command("git", "commit", "-m", msg)
-			}
-			output, err := commitCmd.Output()
+			output, err := internal.Commit(msg, amendFlag)
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println(string(output))
+			fmt.Println(output)
 		}
 	},
-}
-
-func parseCommitMsg(msg string) (commit, scope, summary, description, breakingChange string, hasBreaking bool) {
-	parts := strings.SplitN(msg, "\n\n", 2)
-	header := strings.TrimSpace(parts[0])
-	body := ""
-	if len(parts) > 1 {
-		body = strings.TrimSpace(parts[1])
-	}
-
-	headerParts := strings.SplitN(header, ": ", 2)
-	if len(headerParts) == 2 {
-		typeScope := headerParts[0]
-		summary = headerParts[1]
-
-		hasBreaking = strings.Contains(typeScope, "!")
-		typeScope = strings.TrimSuffix(typeScope, "!")
-
-		if before, after, ok := strings.Cut(typeScope, "("); ok {
-			commit = before
-			scope = strings.TrimSuffix(after, ")")
-		} else {
-			commit = typeScope
-		}
-
-		if hasBreaking {
-			commit = commit + "!"
-		}
-	}
-
-	if before, after, ok := strings.Cut(body, "BREAKING CHANGE:"); ok {
-		description = strings.TrimSpace(before)
-		breakingChange = strings.TrimSpace(after)
-	} else {
-		description = body
-	}
-
-	return commit, scope, summary, description, breakingChange, hasBreaking
-}
-
-func formatCommitMsg(commit, scope, summary, description, breakingChange string) string {
-	// cleanup values
-	commit = strings.TrimSpace(commit)
-	scope = strings.ToLower(strings.TrimSpace(scope))
-	summary = strings.TrimSpace(summary)
-	description = strings.TrimSpace(description)
-	breakingChange = strings.TrimSpace(breakingChange)
-	var b strings.Builder
-
-	hasBreakingChange := strings.Contains(commit, "!")
-	if hasBreakingChange {
-		commit = strings.TrimSuffix(commit, "!")
-	}
-
-	// Title = <type>(scope)!: summary
-	// or <type>!: summary
-	b.WriteString(commit)
-	if scope != "" {
-		b.WriteString("(")
-		b.WriteString(scope)
-		b.WriteString(")")
-	}
-	if hasBreakingChange {
-		b.WriteString("!")
-	}
-	b.WriteString(": ")
-	b.WriteString(summary)
-
-	// Description
-	if description != "" {
-		b.WriteString("\n\n")
-		b.WriteString(description)
-	}
-
-	// BREAKING CHANGES
-	if breakingChange != "" {
-		b.WriteString("\n\nBREAKING CHANGE: ")
-		b.WriteString(breakingChange)
-	}
-
-	return b.String()
-}
-
-func checkGitCommitReady() error {
-	stagedCmd := exec.Command("git", "diff", "--cached", "--quiet")
-	err := stagedCmd.Run()
-	if err == nil {
-		return fmt.Errorf("no staged changes to commit, use `git add <file>` to stage your changes")
-	} else {
-		if err.Error() != "exit status 1" {
-			return fmt.Errorf("failed to check staged changes: %v", err)
-		}
-	}
-	return nil
-}
-
-func loadCommitTypes() map[string]string {
-	if viper.IsSet("commit_types") {
-		return viper.GetStringMapString("commit_types")
-	}
-	return map[string]string{
-		"feat":     "A new feature",
-		"fix":      "A bug fix",
-		"docs":     "Documentation only changes",
-		"style":    "Formatting, white-space, missing semi-colons,...",
-		"refactor": "Code changes that neither fix bugs nor add features",
-		"pref":     "Code changes that improves performance",
-		"test":     "Adding missing tests or correcting existing tests",
-		"build":    "Changes that affect the build system or external dependencies",
-		"ci":       "Changes to our CI configuration files and scripts",
-		"chore":    "Other changes that don't modify src or test files",
-		"revert":   "Reverts a previous commit",
-	}
-}
-
-func loadValidations() (summaryLen, scopeLen int, requireScope, requireDescription bool) {
-	if viper.IsSet("validations.summary_max_length") {
-		summaryLen = viper.GetInt("validations.summary_max_length")
-	} else {
-		summaryLen = 60
-	}
-
-	if viper.IsSet("validations.scope_max_length") {
-		scopeLen = viper.GetInt("validations.scope_max_length")
-	} else {
-		scopeLen = 30
-	}
-
-	if viper.IsSet("validations.require_scope") {
-		requireScope = viper.GetBool("validations.require_scope")
-	} else {
-		requireScope = false
-	}
-
-	if viper.IsSet("validations.require_description") {
-		requireDescription = viper.GetBool("validations.require_description")
-	} else {
-		requireDescription = false
-	}
-
-	return summaryLen, scopeLen, requireScope, requireDescription
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -412,12 +263,15 @@ func initConfig() {
 
 	viper.AutomaticEnv() // read in environment variables that match
 
-	typeMap = loadCommitTypes()
+	typeMap, validations = internal.LoadConfig()
 	typeKeys = make([]string, 0, len(typeMap))
 	for key := range typeMap {
 		typeKeys = append(typeKeys, key)
 	}
 	slices.Sort(typeKeys)
 
-	summaryLen, scopeLen, requireScope, requireDescription = loadValidations()
+	summaryMaxLen = validations.SummaryMaxLen
+	scopeMaxLen = validations.ScopeMaxLen
+	scopeRequired = validations.ScopeRequired
+	descriptionRequired = validations.DescriptionRequired
 }
