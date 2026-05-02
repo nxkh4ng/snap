@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/huh/v2"
 	"github.com/spf13/cobra"
@@ -40,21 +41,10 @@ var (
 	longDesc = `snap is a lightweight CLI tool that helps you make consistent Git Commits without slowing you down.
 Following this conventional commits standard - https://www.conventionalcommits.org/en/v1.0.0/`
 
-	typeMap = map[string]string{
-		"feat":     "A new feature",
-		"fix":      "A bug fix",
-		"docs":     "Documentation only changes",
-		"style":    "Formatting, white-space, missing semi-colons,...",
-		"refactor": "Code changes that neither fix bugs nor add features",
-		"pref":     "Code changes that improves performance",
-		"test":     "Adding missing tests or correcting existing tests",
-		"build":    "Changes that affect the build system or external dependencies",
-		"ci":       "Changes to our CI configuration files and scripts",
-		"chore":    "Other changes that don't modify src or test files",
-		"revert":   "Reverts a previous commit",
-	}
-
+	typeMap map[string]string
 	typeKeys []string
+	summaryLen, scopeLen int
+	requireScope, requireDescription bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -137,22 +127,54 @@ var rootCmd = &cobra.Command{
 						return nil
 					}),
 
-				huh.NewInput().Title("Scope").Value(&scope).
-					Placeholder("api, auth").CharLimit(30),
+				huh.NewInput().Value(&scope).
+					Placeholder("api, auth").
+					TitleFunc(func() string {
+						if requireScope {
+							return "Scope*"
+						}
+						return "Scope"
+					}, &scope).
+					Validate(func(input string) error {
+						if err := huh.ValidateMinLength(1)(input); err != nil && requireScope {
+							return fmt.Errorf("scope is required")
+						}
+						if utf8.RuneCountInString(input) > scopeLen {
+							current := utf8.RuneCountInString(scope)
+							return fmt.Errorf("scope must be at most %d characters long - current: %d", scopeLen, current)
+						}
+						return nil
+					}),
 
 				huh.NewInput().Title("Summary*").Value(&summary).
-					Placeholder("Summary of changes").CharLimit(60).
+					Placeholder("Summary of changes").
 					Validate(func(input string) error {
 						if err := huh.ValidateMinLength(1)(input); err != nil {
 							return fmt.Errorf("summary cannot be empty")
+						}
+						if utf8.RuneCountInString(input) > summaryLen {
+							current := utf8.RuneCountInString(summary)
+							return fmt.Errorf("summary must be at most %d characters long - current: %d", summaryLen, current)
 						}
 						return nil
 					}),
 			),
 
 			huh.NewGroup(
-				huh.NewText().Title("Description").Value(&description).
+				huh.NewText().Value(&description).
+					TitleFunc(func() string {
+						if requireDescription {
+							return "Description*"
+						}
+						return "Description"
+					}, &description).
 					Placeholder("Detailed description of changes").
+					Validate(func(input string) error {
+						if err := huh.ValidateMinLength(1)(input); err != nil && requireDescription {
+							return fmt.Errorf("description is required")
+						}
+						return nil
+					}).
 					WithHeight(10),
 			),
 
@@ -300,6 +322,53 @@ func checkGitCommitReady() error {
 	return nil
 }
 
+func loadCommitTypes() map[string]string {
+	if viper.IsSet("commit_types") {
+		return viper.GetStringMapString("commit_types")
+	}
+	return map[string]string{
+		"feat":     "A new feature",
+		"fix":      "A bug fix",
+		"docs":     "Documentation only changes",
+		"style":    "Formatting, white-space, missing semi-colons,...",
+		"refactor": "Code changes that neither fix bugs nor add features",
+		"pref":     "Code changes that improves performance",
+		"test":     "Adding missing tests or correcting existing tests",
+		"build":    "Changes that affect the build system or external dependencies",
+		"ci":       "Changes to our CI configuration files and scripts",
+		"chore":    "Other changes that don't modify src or test files",
+		"revert":   "Reverts a previous commit",
+	}
+}
+
+func loadValidations() (summaryLen, scopeLen int, requireScope, requireDescription bool) {
+	if viper.IsSet("validations.summary_max_length") {
+		summaryLen = viper.GetInt("validations.summary_max_length")
+	} else {
+		summaryLen = 60
+	}
+
+	if viper.IsSet("validations.scope_max_length") {
+		scopeLen = viper.GetInt("validations.scope_max_length")
+	} else {
+		scopeLen = 30
+	}
+
+	if viper.IsSet("validations.require_scope") {
+		requireScope = viper.GetBool("validations.require_scope")
+	} else {
+		requireScope = false
+	}
+
+	if viper.IsSet("validations.require_description") {
+		requireDescription = viper.GetBool("validations.require_description")
+	} else {
+		requireDescription = false
+	}
+
+	return summaryLen, scopeLen, requireScope, requireDescription
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -310,12 +379,6 @@ func Execute() {
 }
 
 func init() {
-	typeKeys = make([]string, 0, len(typeMap))
-	for key := range typeMap {
-		typeKeys = append(typeKeys, key)
-	}
-	slices.Sort(typeKeys)
-
 	cobra.OnInitialize(initConfig)
 
 	// Here you will define your flags and configuration settings.
@@ -341,15 +404,20 @@ func initConfig() {
 		cobra.CheckErr(err)
 
 		// Search config in home directory with name ".snap" (without extension).
+		viper.AddConfigPath(".")
 		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
+		viper.SetConfigType("toml")
 		viper.SetConfigName(".snap")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
 
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	typeMap = loadCommitTypes()
+	typeKeys = make([]string, 0, len(typeMap))
+	for key := range typeMap {
+		typeKeys = append(typeKeys, key)
 	}
+	slices.Sort(typeKeys)
+
+	summaryLen, scopeLen, requireScope, requireDescription = loadValidations()
 }
