@@ -1,4 +1,4 @@
-package internal
+package utils
 
 import (
 	"fmt"
@@ -53,7 +53,7 @@ func Commit(msg string, amendFlag bool) (string, error) {
 
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to commit: %v", err)
 	}
 	return string(out), nil
 }

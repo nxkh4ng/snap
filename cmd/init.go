@@ -21,7 +21,7 @@ fix = "A bug fix"
 docs = "Documentation only changes"
 style = "Formatting, white-space, missing semi-colons,..."
 refactor = "Code changes that neither fix bugs nor add features"
-pref = "Code changes that improves performance"
+perf = "Code changes that improve performance"
 test = "Adding missing tests or correcting existing tests"
 build = "Changes that affect the build system or external dependencies"
 ci = "Changes to our CI configuration files and scripts"
@@ -43,7 +43,7 @@ var initCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		filename := ".snap.toml"
 		if _, err := os.Stat(filename); err == nil {
-			fmt.Printf("File %s already exists\n", filename)
+			fmt.Fprintf(os.Stderr, "File %s already exists\n", filename)
 			os.Exit(1)
 		}
 		err := os.WriteFile(filename, []byte(defaultConfig), 0o644)

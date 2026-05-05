@@ -24,28 +24,27 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"charm.land/huh/v2"
-	"github.com/nxkh4ng/snap/internal"
+	"github.com/nxkh4ng/snap/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var (
-	version = "0.3.0"	
+	version  = "0.3.0"
 	cfgFile  string
 	longDesc = `snap is a lightweight CLI tool that helps you make consistent Git Commits without slowing you down.
 Following this conventional commits standard - https://www.conventionalcommits.org/en/v1.0.0/`
 
-	typeMap map[string]string
-	validations internal.ValidationConfig
-	typeKeys []string
-	summaryMaxLen, scopeMaxLen int
+	typeMap                            map[string]string
+	validations                        utils.ValidationConfig
+	typeKeys                           []string
+	summaryMaxLen, scopeMaxLen         int
 	scopeRequired, descriptionRequired bool
 )
 
@@ -55,8 +54,8 @@ var rootCmd = &cobra.Command{
 	Short: "snap your commits into shape",
 	Long:  longDesc,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := internal.CheckGitRepo(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+		if err := utils.CheckGitRepo(); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
 			os.Exit(1)
 		}
 
@@ -68,22 +67,22 @@ var rootCmd = &cobra.Command{
 
 		amendFlag, _ := cmd.Flags().GetBool("amend")
 		if amendFlag {
-			latestMsg, err := internal.GetTheLatestCommitMsg()
+			latestMsg, err := utils.GetTheLatestCommitMsg()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
-			commit, scope, summary, description, breakingChange, _ = internal.ParseCommitMsg(latestMsg)
+			commit, scope, summary, description, breakingChange, _ = utils.ParseCommitMsg(latestMsg)
 		} else {
 			autoStageFlag, _ := cmd.Flags().GetBool("all")
 			if autoStageFlag {
-				if err := internal.StageAll(); err != nil {
+				if err := utils.StageAll(); err != nil {
 					fmt.Fprintf(os.Stderr, "%v\n", err)
 					os.Exit(1)
 				}
 			} else {
-				if err := internal.CheckGitCommitReady(); err != nil {
-					fmt.Fprintln(os.Stderr, err)
+				if err := utils.CheckGitCommitReady(); err != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", err)
 					os.Exit(1)
 				}
 			}
@@ -189,9 +188,10 @@ var rootCmd = &cobra.Command{
 			}),
 		).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
 		if err := f.Run(); err != nil {
-			log.Fatal(err)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
 		}
-		msg = internal.FormatCommitMsg(commit, scope, summary, description, breakingChange)
+		msg = utils.FormatCommitMsg(commit, scope, summary, description, breakingChange)
 
 		cf := huh.NewForm(
 			huh.NewGroup(
@@ -208,15 +208,19 @@ var rootCmd = &cobra.Command{
 			),
 		).WithTheme(huh.ThemeFunc(huh.ThemeBase16))
 		if err := cf.Run(); err != nil {
-			log.Fatal(err)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
 		}
 
 		if confirm {
-			output, err := internal.Commit(msg, amendFlag)
+			output, err := utils.Commit(msg, amendFlag)
 			if err != nil {
-				log.Fatal(err)
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
 			}
 			fmt.Println(output)
+		} else {
+			fmt.Println("Cancelled")
 		}
 	},
 }
@@ -258,7 +262,7 @@ func initConfig() {
 
 	viper.AutomaticEnv() // read in environment variables that match
 
-	typeMap, validations = internal.LoadConfig()
+	typeMap, validations = utils.LoadConfig()
 	typeKeys = make([]string, 0, len(typeMap))
 	for key := range typeMap {
 		typeKeys = append(typeKeys, key)
