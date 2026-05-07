@@ -1,5 +1,5 @@
 ![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go)
-![Release](https://img.shields.io/github/v/release/nxkh4ng/snap?style=flat-square)
+![Release](https://img.shields.io/badge/release-v0.3.0-teal?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)
 
 # snap
@@ -39,7 +39,9 @@ go install github.com/nxkh4ng/snap@latest
 
 ### Option 2: Download binary
 
-1. Download the ZIP file for your OS from [Releases Page](https://github.com/nxkh4ng/snap/releases)
+1. Download the ZIP file for your OS from:
+   - [Github Releases](https://github.com/nxkh4ng/snap/releases)
+   - [Codeberg Releases](https://codeberg.org/nxkh4ng/snap/releases)
 2. Extract the archive
 3. Move `snap` (or `snap.exe` on Windows) to a folder in your `PATH`
 
