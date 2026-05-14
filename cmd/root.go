@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	version  = "0.3.0"
+	version  = "dev"
 	cfgFile  string
 	longDesc = `snap is a lightweight CLI tool that helps you make consistent Git Commits without slowing you down.
 Following this conventional commits standard - https://www.conventionalcommits.org/en/v1.0.0/`
