@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var defaultConfig = `# snap configuration
-# https://github.com/nxkh4ng/snap
+var defaultConfig = `# snap-commit configuration
+# https://github.com/nxkh4ng/snap-commit
 
 # Commit types
 [commit_types]
@@ -38,7 +38,7 @@ require_description = false`
 // initCmd represents the init command
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize snap config",
+	Short: "Initialize snap-commit config",
 	Long:  "Create a `.snap.toml` configuration file in current directory",
 	Run: func(cmd *cobra.Command, args []string) {
 		filename := ".snap.toml"

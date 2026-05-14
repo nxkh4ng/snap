@@ -1,12 +1,12 @@
 ![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go)
-![Release](https://img.shields.io/badge/release-v0.3.0-teal?style=flat-square)
+![Release](https://img.shields.io/badge/release-v0.4.0-teal?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)
 
-# snap
+# snap-commit
 
 > Snap your commits into shape.
 
-`snap` is a lightweight CLI tool that helps you create consistent Git commits following the [**Conventional Commits**](https://www.conventionalcommits.org/en/v1.0.0/) standard.
+`snap-commit` is a lightweight CLI tool that helps you create consistent Git commits following the [**Conventional Commits**](https://www.conventionalcommits.org/en/v1.0.0/) standard.
 
 ![Demo](./assets/default.gif)
 
@@ -40,8 +40,8 @@ go install github.com/nxkh4ng/snap@latest
 ### Option 2: Download binary
 
 1. Download the ZIP file for your OS from:
-   - [Github Releases](https://github.com/nxkh4ng/snap/releases)
-   - [Codeberg Releases](https://codeberg.org/nxkh4ng/snap/releases)
+   - [GitHub Releases](https://github.com/nxkh4ng/snap-commit/releases)
+   - [Codeberg Releases](https://codeberg.org/nxkh4ng/snap-commit/releases)
 2. Extract the archive
 3. Move `snap` (or `snap.exe` on Windows) to a folder in your `PATH`
 
